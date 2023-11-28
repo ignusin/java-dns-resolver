@@ -1,0 +1,12 @@
+package ru.revoltech.dnsresolver.dns;
+
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+
+import java.util.List;
+
+@RequiredArgsConstructor
+@Getter
+public class QName {
+    private final List<String> sections;
+}
