@@ -30,4 +30,16 @@ public class CommandLineArgsReaderTest {
         Optional<CommandLineArgs> argsOptional = reader.read(new String[0]);
         assertTrue(argsOptional.isEmpty());
     }
+
+    @Test
+    void testInvalidOnlyNameServer() {
+        Optional<CommandLineArgs> argsOptional = reader.read(new String[] { "-ns", "8.8.8.8" });
+        assertTrue(argsOptional.isEmpty());
+    }
+
+    @Test
+    void testInvalidOnlyHost() {
+        Optional<CommandLineArgs> argsOptional = reader.read(new String[] { "-h", "yandex.ru" });
+        assertTrue(argsOptional.isEmpty());
+    }
 }
