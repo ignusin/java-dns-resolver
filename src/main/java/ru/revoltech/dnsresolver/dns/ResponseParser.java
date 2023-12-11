@@ -1,4 +1,7 @@
 package ru.revoltech.dnsresolver.dns;
 
-public class ResponseParser {
+import java.io.IOException;
+
+public interface ResponseParser {
+    ResolverResponse parse(byte[] buffer) throws IOException;
 }

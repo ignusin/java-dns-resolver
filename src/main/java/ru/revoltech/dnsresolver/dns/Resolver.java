@@ -1,12 +1,25 @@
 package ru.revoltech.dnsresolver.dns;
 
 import org.apache.commons.lang3.NotImplementedException;
+import ru.revoltech.dnsresolver.dns.channel.NameServerChannel;
+import ru.revoltech.dnsresolver.dns.channel.NameServerChannelConnector;
 
 import java.io.IOException;
-import java.net.DatagramSocket;
-import java.net.InetSocketAddress;
 
 public class Resolver {
+    private final NameServerChannelConnector nameServerChannelConnector;
+    private final RequestBuilder requestBuilder;
+    private final ResponseParser responseParser;
+
+    public Resolver(
+            NameServerChannelConnector nameServerChannelConnector,
+            RequestBuilder requestBuilder,
+            ResponseParser responseParser) {
+        this.nameServerChannelConnector = nameServerChannelConnector;
+        this.requestBuilder = requestBuilder;
+        this.responseParser = responseParser;
+    }
+
     public ResolverResponse resolve(ResolverRequest request) {
         try {
             return resolveExceptional(request);
@@ -16,11 +29,17 @@ public class Resolver {
     }
 
     private ResolverResponse resolveExceptional(ResolverRequest request) throws IOException {
-        DatagramSocket socket = new DatagramSocket();
-        socket.connect(new InetSocketAddress(request.getNameServerHost(), request.getNameServerPort()));
+        try (NameServerChannel channel = nameServerChannelConnector
+                .connect(request.getNameServerHost(), request.getNameServerPort())) {
 
+            byte[] data = requestBuilder.build(request);
+            channel.send(data);
 
-        // socket.send();
-        throw new NotImplementedException();
+            // TODO: magic numbers.
+            byte[] buffer = channel.receive();
+
+            ResolverResponse response = responseParser.parse(buffer);
+            return response;
+        }
     }
 }
