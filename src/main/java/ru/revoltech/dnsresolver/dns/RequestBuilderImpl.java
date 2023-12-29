@@ -2,21 +2,24 @@ package ru.revoltech.dnsresolver.dns;
 
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
+import ru.revoltech.dnsresolver.io.LittleEndianOutputStream;
+import ru.revoltech.dnsresolver.io.LittleEndianOutputStreamHelper;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class RequestBuilderImpl implements RequestBuilder {
 
-    private volatile short requestId = Short.MIN_VALUE;
+    private AtomicInteger requestId = new AtomicInteger(Short.MIN_VALUE);
 
     @Override
     public byte[] build(ResolverRequest request) {
         byte[] result = new FluentBuilder()
-                .setId(requestId++)
+                .setId((short)requestId.getAndIncrement())
                 .setRecursive(true)
                 .addQuestion(QName.fromHostname(request.getResolveHost()), QType.A, QClass.IN)
                 .toByteArray();
@@ -27,7 +30,7 @@ public class RequestBuilderImpl implements RequestBuilder {
     private static class FluentBuilder {
         private short id = 0x0001;
         private boolean recursive = true;
-        private List<Question> questions = new ArrayList<>();
+        private final List<Question> questions = new ArrayList<>();
 
         public FluentBuilder setId(short id) {
             this.id = id;
@@ -45,92 +48,80 @@ public class RequestBuilderImpl implements RequestBuilder {
         }
 
         public byte[] toByteArray() {
-            try (ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+            try (ByteArrayOutputStream byteStream = new ByteArrayOutputStream();
+                 LittleEndianOutputStream output = new LittleEndianOutputStream(byteStream)) {
                 writeHeader(output);
                 writeBody(output);
 
-                return output.toByteArray();
+                return byteStream.toByteArray();
             } catch (IOException ex) {
                 throw new RuntimeException(ex);
             }
         }
 
-        private void writeHeader(ByteArrayOutputStream output) throws IOException {
+        private void writeHeader(LittleEndianOutputStream output) throws IOException {
             writeId(output);
             writeFlags(output);
             writeQuantities(output);
         }
 
-        private void writeId(ByteArrayOutputStream output) throws IOException {
-            output.write(id >> 8);
-            output.write(id & 0xFF);
+        private void writeId(LittleEndianOutputStream output) throws IOException {
+            output.writeShort(id);
         }
 
-        private void writeFlags(ByteArrayOutputStream output) throws IOException {
+        private void writeFlags(LittleEndianOutputStream output) throws IOException {
             if (recursive) {
-                output.write(0x01);
+                output.writeByte(0x01);
             } else {
-                output.write(0x00);
+                output.writeByte(0x00);
             }
 
-            output.write(0x00);
+            output.writeByte(0x00);
         }
 
-        private void writeQuantities(ByteArrayOutputStream output) throws IOException {
+        private void writeQuantities(LittleEndianOutputStream output) throws IOException {
             short questionCount = (short) questions.size();
-            output.write(questionCount >> 8);
-            output.write(questionCount & 0xFF);
-
-            output.write(0x00);
-            output.write(0x00);
-
-            output.write(0x00);
-            output.write(0x00);
-
-            output.write(0x00);
-            output.write(0x00);
+            output.writeShort(questionCount);
+            output.writeShort(0);
+            output.writeShort(0);
+            output.writeShort(0);
         }
 
-        private void writeBody(ByteArrayOutputStream output) throws IOException {
+        private void writeBody(LittleEndianOutputStream output) throws IOException {
             for (Question question : questions) {
                 writeQuestion(output, question);
             }
         }
 
-        private void writeQuestion(ByteArrayOutputStream output, Question question) throws IOException {
+        private void writeQuestion(LittleEndianOutputStream output, Question question) throws IOException {
             writeQName(output, question.getQName());
             writeQType(output, question.getQType());
             writeQClass(output, question.getQClass());
         }
 
-        private void writeQName(ByteArrayOutputStream output, QName qName) throws IOException {
+        private void writeQName(LittleEndianOutputStream output, QName qName) throws IOException {
             for (String section : qName.getSections()) {
-                byte[] asciiSection = section.getBytes(StandardCharsets.US_ASCII);
-                output.write(asciiSection.length);
-                output.write(asciiSection);
+                output.writeByte(section.length());
+                output.writeStringASCII(section);
             }
 
-            output.write(0x00);
+            output.writeByte(0x00);
         }
 
-        private void writeQType(ByteArrayOutputStream output, QType qType) {
-            output.write(qType.getValue() >> 8);
-            output.write(qType.getValue() & 0xFF);
+        private void writeQType(LittleEndianOutputStream output, QType qType) throws IOException {
+            output.writeShort((short)qType.getValue());
         }
 
-        private void writeQClass(ByteArrayOutputStream output, QClass qClass) {
-            output.write(qClass.getValue() >> 8);
-            output.write(qClass.getValue() & 0xFF);
+        private void writeQClass(LittleEndianOutputStream output, QClass qClass) throws IOException {
+            output.writeShort((short)qClass.getValue());
         }
 
         @RequiredArgsConstructor
         @Getter
         private static class Question {
-
             private final QName qName;
             private final QType qType;
             private final QClass qClass;
-
         }
     }
 }

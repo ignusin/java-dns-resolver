@@ -6,7 +6,7 @@ import java.net.DatagramSocket;
 import java.util.*;
 
 public class NameServerUDPChannel implements NameServerChannel {
-    private static final int RECV_BUFFER_LENGTH = 10;
+    private static final int RECV_BUFFER_LENGTH = 2048;
 
     private final DatagramSocket socket;
 
